@@ -142,6 +142,18 @@ void setup() {
   sll2.getValueLabel()
       .toUpperCase(false)
       ;
+      
+  Toggle tgl0 = cp5.addToggle("csvdump")
+                    .setFont(cf0)
+                    .setPosition(10, 240)
+                    .setSize(10,10)
+                    .moveTo(grp0)
+                    ;
+     
+  tgl0.getCaptionLabel()
+      .setText("CSV Dump")
+      .toUpperCase(false)
+      ;
     
   cp5.addAccordion("acc_config")
      .setPosition(500,0)
@@ -151,7 +163,7 @@ void setup() {
      .activateEvent(true)
      ;
      
-    // === Remove All unused properties ===
+  // === Remove All unused properties ===
   for (Textlabel textLabel: cp5.getAll(Textlabel.class)) {
     cp5.removeProperty(textLabel);
   }
@@ -191,7 +203,7 @@ void draw() {
       float value = (float) accum_val / accum_count;
       points.add(gp.getX(), value, gp.getLabel());
       //points.add(gp);
-      if (Objects.nonNull(csv)) {
+      if (Objects.nonNull(csv) && cp5.get(Toggle.class, "csvdump").getValue() == 1) {
         csv.println("\"" + gp.getLabel() + "\"," + String.valueOf(value));
         csv.flush();
         csvIsWritten = true;
@@ -291,6 +303,11 @@ public void comSpeed(int theValue) {
 }
 
 public void interval(int theValue) {
+  // === Save Properties ===
+  cp5.saveProperties("sensor.properties");
+}
+
+public void csvdump(int theValue) {
   // === Save Properties ===
   cp5.saveProperties("sensor.properties");
 }
