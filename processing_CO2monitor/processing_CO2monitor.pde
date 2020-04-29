@@ -26,14 +26,13 @@ GPointsArray points;
 String csvDumpFileName;
 PrintWriter csv;
 boolean csvIsWritten = false;
+boolean plotUpdated = false;
 Date baseDate;
-SimpleDateFormat sdf;
  
 void setup() {
   // long getTime() cannot be handled by float which is supported GPlot
   // Threfore this sketch handles the offset time
   baseDate = new Date();
-  sdf = new SimpleDateFormat("YYYY/MM/dd HH:mm:ss");
 
   size(640, 480);
   cp5 = new ControlP5(this);
@@ -151,7 +150,6 @@ void setup() {
                     .setSize(10,10)
                     .moveTo(grp0)
                     ;
-     
   tgl0.getCaptionLabel()
       .setText("CSV Dump")
       .toUpperCase(false)
@@ -189,24 +187,26 @@ void draw() {
   textAlign(CENTER);
   text(comText, 10+100/2, 10+40/2);
   textSize(20);
- 
+
   if (queue.getNPoints() >= 1) {
     if (points.getNPoints() >= pSize) {
       points.remove(0);
     }
     GPoint gp = queue.get(0);
+    accum_val += gp.getY();
+    accum_count++;
     queue.remove(0);
     int sampleTime = millis();
     int interval = interval_vals[(int) cp5.get(ScrollableList.class, "interval").getValue()];
-    accum_val += gp.getY();
-    accum_count++;
     if (sampleTime - lastSampleTime >= interval*1000) {
       lastSampleTime += interval*1000;
       float value = (float) accum_val / accum_count;
-      points.add(gp.getX(), value, gp.getLabel());
+      points.add(gp.getX(), value);
+      //points.add(gp.getX(), value, gp.getLabel());
       //points.add(gp);
       if (Objects.nonNull(csv) && cp5.get(Toggle.class, "csvdump").getValue() == 1) {
         Date date = new Date((long) gp.getX()*1000 + + baseDate.getTime());
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
         csv.println("\"" + sdf.format(date) + "\"," + String.valueOf(value));
         csv.flush();
         csvIsWritten = true;
@@ -214,28 +214,32 @@ void draw() {
       accum_val = 0;
       accum_count = 0;
       plot.setPoints(points);
-      
-      //plot.setPoints(points);
-      plot.getXAxis().setNTicks(6);
-      int tickSize = plot.getXAxis().getTicks().length;
-      String tickLabels[] = new String[tickSize];
-      //int tickIdx = 0;
-      String prvDateStr = "";
-      for (int i = 0; i < tickSize; i++) {
-        float tickX = plot.getXAxis().getTicks()[i];
-        Date tickDate = new Date((long) tickX*1000 + + baseDate.getTime());
-        String tickDateStr = sdf.format(tickDate);
-        String dateStr = tickDateStr.substring(5, 10);
-        String timeStr = tickDateStr.substring(11, 16);
-        if (prvDateStr.equals(dateStr)) {
-          tickLabels[i] = timeStr;
-        } else {
-          tickLabels[i] = timeStr + "\n" + dateStr;
-          prvDateStr = dateStr;
-        }
-      }
-      plot.getXAxis().setTickLabels(tickLabels);
+      plotUpdated = true;
     }
+  }
+
+  if (plotUpdated) {
+    plotUpdated = false;
+    plot.getXAxis().setNTicks(6);
+    int tickSize = plot.getXAxis().getTicks().length;
+    String tickLabels[] = new String[tickSize];
+    //int tickIdx = 0;
+    String prvDateStr = "";
+    for (int i = 0; i < tickSize; i++) {
+      float tickX = plot.getXAxis().getTicks()[i];
+      Date tickDate = new Date((long) tickX*1000 + + baseDate.getTime());
+      SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+      String tickDateStr = sdf.format(tickDate);
+      String dateStr = tickDateStr.substring(5, 10);
+      String timeStr = tickDateStr.substring(11, 16);
+      if (prvDateStr.equals(dateStr)) {
+        tickLabels[i] = timeStr;
+      } else {
+        tickLabels[i] = timeStr + "\n" + dateStr;
+        prvDateStr = dateStr;
+      }
+    }
+    plot.getXAxis().setTickLabels(tickLabels);
   }
   plot.defaultDraw();
 }
@@ -260,16 +264,35 @@ public void exit() {
 }
 
 public void csv(int theValue) {
-  selectInput("Select a file to process:", "fileSelected", new File(dataPath("")));
+  selectInput("Select a file to process:", "csvFileSelected", new File(dataPath("")));
 }
 
-public void fileSelected(File selection) {
+public void csvFileSelected(File selection) {
   if (selection != null) {
+    noLoop(); // stop draw() to avoid plot conflicting
     println("User selected " + selection.getAbsolutePath());
     Table table = loadTable(selection.getAbsolutePath(), "header");
     println(table.getRowCount() + " total rows in table");
     for (TableRow row : table.rows()) {
+      try {
+        String dateStr = row.getString("date");
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+        Date date = sdf.parse(dateStr);
+        float co2ppm = row.getFloat("CO2");
+        if (points.getNPoints() >= pSize) {
+          points.remove(0);
+        }
+        points.add((float) (date.getTime() - baseDate.getTime())/1000, co2ppm);
+        //queue.add((float) (date.getTime() - baseDate.getTime())/1000, co2ppm);
+      } catch (ParseException e) {
+        println("illegal format");
+        //e.printStackTrace();
+      }
     }
+    plot.setPoints(points);
+    println("Done");
+    plotUpdated = true;
+    loop(); // restart draw()
   }
 }
 
@@ -316,7 +339,9 @@ public void serialEvent(Serial Port) {
   print(comText);
   int co2ppm = Integer.parseInt(comText.substring(2, 6));
 
+  noLoop(); // stop draw() to avoid plot conflicting
   if (queue.getNPoints() == 0) {
     queue.add((float) (new Date().getTime() - baseDate.getTime())/1000, co2ppm);
   }
+  loop(); // restart draw()
 }
