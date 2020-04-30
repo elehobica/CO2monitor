@@ -9,7 +9,7 @@ ControlP5 cp5;
 
 String comPorts[];
 String comSpeeds[] = {"9600", "19200", "38400", "57600", "115200"};
-String intevals[] = {"1sec/1hour", "3sec/3hour", "6sec/6hour", "12sec/12hour", "24sec/24hour", "60sec/60hour", "168sec/7days", "4min/10days", "336sec/14days", "12min/30days", "60min/150days"};
+String intevals[] = {"1sec(1hour)", "3sec(3hour)", "6sec(6hour)", "12sec(12hour)", "24sec(24hour)", "60sec(60hour)", "168sec(7days)", "4min(10days)", "336sec(14days)", "12min(30days)", "60min(150days)"};
 int interval_vals[] = {1, 3, 6, 12, 24, 60, 168, 60*4, 336, 60*12, 60*60};
 
 final int pSize = 3600;
@@ -17,7 +17,8 @@ int lastSampleTime = 0;
 int accum_val = 0;
 int accum_count = 0;
 
-String comText = "";
+int co2ppm = 432;
+//String comText = "";
 
 GPlot plot;
 GPointsArray queue;
@@ -28,8 +29,10 @@ PrintWriter csv;
 boolean csvIsWritten = false;
 boolean plotUpdated = false;
 Date baseDate;
- 
+   
 void setup() {
+  ControllerStyle st;
+  
   // long getTime() cannot be handled by float which is supported GPlot
   // Threfore this sketch handles the offset time
   baseDate = new Date();
@@ -45,7 +48,7 @@ void setup() {
   points = new GPointsArray(pSize);
 
   plot = new GPlot(this);
-  plot.setPos(40, 50);
+  plot.setPos(40, 60);
   plot.setOuterDim(560, 120);
   plot.setDim(500, 120);
   plot.setPoints(points);
@@ -59,110 +62,289 @@ void setup() {
   plot.getYAxis().setRotateTickLabels(false);
 
   // ====================
-  // CSV Load
+  // File Menu
   // ====================
-  cp5.addButton("csv")
-       .setFont(cf0)
-       .setPosition(440,0)
-       .setSize(55,20)
-       ;
-       
-  // ====================
-  // Configuration Menu
-  // ====================
-  comPorts = Serial.list();
-
-  Group grp0 = cp5.addGroup("Configuration")
+  Group grp0 = cp5.addGroup("File")
                   .setBackgroundColor(color(0, 64))
                   .setBarHeight(20)
+                  .hideArrow() 
+                  //.activateEvent(true)
                   ;
   grp0.getCaptionLabel()
       .setFont(cf0)
       .setHeight(20)
       .toUpperCase(false)
       ;
+      
+  cp5.addButton("load_csv")
+      .setFont(cf0)
+      .setPosition(0,0)
+      .setSize(120,20)
+      .moveTo(grp0)
+      // Label
+      .getCaptionLabel()
+      .setText("Load CSV")
+      .alignX(LEFT)
+      .toUpperCase(false)
+      ;
 
-  //cp5.addTextlabel("lbl_comPort").setFont(cf0).setText("COM Port").setPosition(10,10).moveTo(grp0).removeProperty("stringValue");
-  cp5.addTextlabel("lbl_comPort", "COM Port", 10, 10).setFont(cf0).moveTo(grp0);
-  cp5.addTextlabel("lbl_comSpeed").setFont(cf0).setText("COM Speed").setPosition(10,80).moveTo(grp0);
-  cp5.addTextlabel("lbl_interval").setFont(cf0).setText("Interval/History").setPosition(10,150).moveTo(grp0);
-                    
-  ScrollableList sll0 = cp5.addScrollableList("comPort")
-                           .setFont(cf0)
-                           .setPosition(10, 30)
-                           .setSize(120, 60)
-                           .setBarHeight(20)
-                           .setItemHeight(20)
-                           .addItems(comPorts)
-                           .setOpen(false)
-                           .moveTo(grp0)
-                           ;
-  sll0.getCaptionLabel()
-      .setText("select Port")
+  cp5.addButton("exit")
+      .setFont(cf0)
+      .setPosition(0,20)
+      .setSize(120,20)
+      .moveTo(grp0)
+      // Label
+      .getCaptionLabel()
+      .setText("Exit")
+      .alignX(LEFT)
       .toUpperCase(false)
       ;
-  sll0.addCallback(
-    new CallbackListener() {
-      public void controlEvent(CallbackEvent theEvent) {
-        if (theEvent.getAction() == ControlP5.ACTION_PRESS) {
-          ScrollableList comPort = (ScrollableList) theEvent.getController();
-          comPorts = Serial.list();
-          comPort.setItems(comPorts);
-        }
-      }
-    }
-  );
-  ScrollableList sll1 = cp5.addScrollableList("comSpeed")
-                           .setFont(cf0)
-                           .setPosition(10, 100)
-                           .setSize(120, 60)
-                           .setBarHeight(20)
-                           .setItemHeight(20)
-                           .addItems(comSpeeds)
-                           .setOpen(false)
-                           .moveTo(grp0)
-                         ;
-  sll1.getCaptionLabel()
-      .setText("select Speed")
+
+  cp5.addAccordion("acc_file")
+      .setPosition(0,0)
+      .setWidth(120)
+      .addItem(grp0)
+      .setItemHeight(40)
+      //.activateEvent(true)
+      ;
+    
+  // ====================
+  // Option Menu
+  // ====================
+  Group grp1 = cp5.addGroup("Option")
+                  .setBackgroundColor(color(0, 192))
+                  .setBarHeight(20)
+                  .hideArrow() 
+                  //.activateEvent(true)
+                  ;
+  grp1.getCaptionLabel()
+      .setFont(cf0)
+      .setHeight(20)
       .toUpperCase(false)
       ;
-  ScrollableList sll2 = cp5.addScrollableList("interval")
-                           .setFont(cf0)
-                           .setPosition(10, 170)
-                           .setSize(120, 60)
-                           .setBarHeight(20)
-                           .setItemHeight(20)
-                           .addItems(intevals)
-                           .setOpen(false)
-                           .moveTo(grp0)
-                         ;
-  sll2.getCaptionLabel()
+
+  cp5.addTextlabel("lbl_interval").setFont(cf0).setText("Graph tick(Total)").setPosition(10,0).moveTo(grp1);
+
+  cp5.addScrollableList("interval")
+      .setFont(cf0)
+      .setPosition(10, 20)
+      .setSize(100, 60)
+      .setBarHeight(20)
+      .setItemHeight(20)
+      .addItems(intevals)
+      .setOpen(false)
+      .moveTo(grp1)
+      // Label
+      .getCaptionLabel()
       .setText("select Interval")
       .toUpperCase(false)
       ;
-  sll2.getValueLabel()
+      // Label
+  cp5.get(ScrollableList.class, "interval")
+      .getValueLabel()
       .toUpperCase(false)
       ;
       
-  Toggle tgl0 = cp5.addToggle("csvdump")
-                    .setFont(cf0)
-                    .setPosition(10, 240)
-                    .setSize(10,10)
-                    .moveTo(grp0)
-                    ;
-  tgl0.getCaptionLabel()
-      .setText("CSV Dump")
+  cp5.addToggle("dump_csv")
+      .setFont(cf0)
+      .setPosition(10, 90)
+      .setSize(10,10)
+      .moveTo(grp1)
+      // Label
+      .getCaptionLabel()
+      .setText("Dump CSV")
       .toUpperCase(false)
       ;
-    
-  cp5.addAccordion("acc_config")
-     .setPosition(500,0)
-     .setWidth(140)
-     .addItem(grp0)
-     .setItemHeight(400)
-     .activateEvent(true)
+  st = cp5.get(Toggle.class, "dump_csv").getCaptionLabel().getStyle();
+  st.marginLeft = 20;
+  st.marginTop = -20;
+
+  cp5.addButton("clear_graph")
+      .setFont(cf0)
+      .setPosition(10,110)
+      .setSize(100, 20)
+      .moveTo(grp1)
+      // Label
+      .getCaptionLabel()
+      .setText("Clear Graph")
+      .toUpperCase(false)
+      ;
+
+  cp5.addRange("range_co2")
+      .setFont(cf0)
+      // disable broadcasting since setRange and setRangeValues will trigger an event
+      .setBroadcast(false) 
+      .setPosition(10, 170)
+      .setSize(100, 20)
+      .setHandleSize(10)
+      .setRange(400, 2000)
+      .setRangeValues(400, 1000)
+      // after the initialization we turn broadcast back on again
+      .setBroadcast(true)
+      .setColorForeground(color(255, 40))
+      .setColorBackground(color(255, 40))  
+      .moveTo(grp1)
+      ;
+  cp5.get(Range.class, "range_co2")
+      .getCaptionLabel()
+      .setText("CO2 Green Zone")
+      .toUpperCase(false)
+      ;
+  st = cp5.get(Range.class, "range_co2").getCaptionLabel().getStyle();
+  st.marginLeft = -100;
+  st.marginTop = -20;
+
+  cp5.addRange("range_temp")
+      .setFont(cf0)
+      // disable broadcasting since setRange and setRangeValues will trigger an event
+      .setBroadcast(false) 
+      .setPosition(10, 210)
+      .setSize(100, 20)
+      .setHandleSize(10)
+      .setRange(-40, 60)
+      .setRangeValues(0, 30)
+      // after the initialization we turn broadcast back on again
+      .setBroadcast(true)
+      .setColorForeground(color(255, 40))
+      .setColorBackground(color(255, 40))  
+      .moveTo(grp1)
+      ;
+  cp5.get(Range.class, "range_temp")
+      .getCaptionLabel()
+      .setText("T. Green Zone")
+      .toUpperCase(false)
+      ;
+  st = cp5.get(Range.class, "range_temp").getCaptionLabel().getStyle();
+  st.marginLeft = -100;
+  st.marginTop = -20;
+
+  cp5.addRange("range_humi")
+      .setFont(cf0)
+      // disable broadcasting since setRange and setRangeValues will trigger an event
+      .setBroadcast(false) 
+      .setPosition(10, 250)
+      .setSize(100,20)
+      .setHandleSize(10)
+      .setRange(0, 100)
+      .setRangeValues(20, 60)
+      // after the initialization we turn broadcast back on again
+      .setBroadcast(true)
+      .setColorForeground(color(255, 40))
+      .setColorBackground(color(255, 40))  
+      .moveTo(grp1)
+      ;
+  cp5.get(Range.class, "range_humi")
+      .getCaptionLabel()
+      .setText("H. Green Zone")
+      .toUpperCase(false)
+      ;
+  st = cp5.get(Range.class, "range_humi").getCaptionLabel().getStyle();
+  st.marginLeft = -100;
+  st.marginTop = -20;
+  cp5.addAccordion("acc_option")
+     .setPosition(120,0)
+     .setWidth(120)
+     .addItem(grp1)
+     .setItemHeight(300)
+     //.activateEvent(true)
      ;
+
+  // ====================
+  // Com Menu
+  // ====================
+  comPorts = Serial.list();
+
+  Group grp2 = cp5.addGroup("COM")
+                  .setBackgroundColor(color(0, 192))
+                  .setBarHeight(20)
+                  .hideArrow() 
+                  //.activateEvent(true)
+                  ;
+  grp2.getCaptionLabel()
+      .setFont(cf0)
+      .setHeight(20)
+      .toUpperCase(false)
+      ;
+
+  //cp5.addTextlabel("lbl_comPort").setFont(cf0).setText("COM Port").setPosition(10,10).moveTo(grp0).removeProperty("stringValue");
+  cp5.addTextlabel("lbl_comPort", "COM Port", 10, 10).setFont(cf0).moveTo(grp2);
+  cp5.addTextlabel("lbl_comSpeed").setFont(cf0).setText("COM Speed").setPosition(10,80).moveTo(grp2);
+                    
+  cp5.addScrollableList("comPort")
+      .setFont(cf0)
+      .setPosition(10, 30)
+      .setSize(100, 60)
+      .setBarHeight(20)
+      .setItemHeight(20)
+      .addItems(comPorts)
+      .setOpen(false)
+      .moveTo(grp2)
+      .addCallback(
+        new CallbackListener() {
+          public void controlEvent(CallbackEvent theEvent) {
+            if (theEvent.getAction() == ControlP5.ACTION_PRESS) {
+              ScrollableList comPort = (ScrollableList) theEvent.getController();
+              comPorts = Serial.list();
+              comPort.setItems(comPorts);
+            }
+          }
+        }
+      )
+      // Label
+      .getCaptionLabel()
+      .setText("select Port")
+      .toUpperCase(false)
+      ;
+  
+  cp5.addScrollableList("comSpeed")
+      .setFont(cf0)
+      .setPosition(10, 100)
+      .setSize(100, 60)
+      .setBarHeight(20)
+      .setItemHeight(20)
+      .addItems(comSpeeds)
+      .setOpen(false)
+      .moveTo(grp2)
+      // Label
+      .getCaptionLabel()
+      .setText("select Speed")
+      .toUpperCase(false)
+      ;
+
+  cp5.addAccordion("acc_com")
+     .setPosition(240,0)
+     .setWidth(120)
+     .addItem(grp2)
+     .setItemHeight(180)
+     //.activateEvent(true)
+     ;
+
+  // ====================
+  // Rest of Tool Bar
+  // ====================
+  cp5.addButtonBar("bar")
+    .setPosition(360, 0)
+    .setSize(280, 20)
+    ;
+
+  // ====================
+  // Capture / Stop
+  // ====================
+  cp5.addIcon("capture", 10)
+      .setPosition(600, 20)
+      .setSize(40, 40)
+      //.setRoundedCorners(20)
+      .setFont(createFont("fontawesome-webfont.ttf", 40))
+      .setFontIcons(#00f144, #00f144) // Stop:#00f28d, Pause: #00f28b
+      .setSwitch(true)
+      .setColorForeground(color(64))
+      .setColorActive(color(0, 104, 0))
+      .hideBackground()
+      ;
      
+  // ====================
+  // Load Properties
+  // ====================
   // === Remove All unused properties ===
   for (Textlabel textLabel: cp5.getAll(Textlabel.class)) {
     cp5.removeProperty(textLabel);
@@ -176,18 +358,40 @@ void setup() {
   csvDumpFileName = nf(year(), 4) + "_" + nf(month(), 2) + nf(day(), 2) +"_"+ nf(hour(), 2) + nf(minute(), 2) + nf(second(), 2) + ".csv";
   csv = createWriter(csvDumpFileName);
   csv.println("date,CO2");
+  
+}
 
+void disp_meter(int x, int y, int w, int h, String captionStr, float val, String valFmt, String unitStr, String rangeName) {
+  Range range = cp5.get(Range.class, rangeName);
+  boolean withinRange = (val >= range.getLowValue() && val <= range.getHighValue());
+  if (withinRange) {
+    fill(256, 256, 256);
+  } else {
+    fill(192, 24, 24);
+  }
+  rect(x, y, w, h, 4);
+  textAlign(RIGHT);
+  fill(256, 256, 256);
+  textSize(20);
+  text(captionStr, x+w/2-58, y+h/2+8);  
+  textAlign(CENTER);
+  if (withinRange) {
+    fill(0, 102, 153);
+  } else {
+    fill(255, 255, 255);
+  }
+  textSize(20);
+  text(String.format(valFmt, val), x+w/2-4, y+h/2+8);
+  textSize(12);
+  text(unitStr, x+w/2+34, y+h/2+8);
 }
 
 void draw() {
   background(128);
-  fill(256, 256, 256);
-  rect(10, 10, 100, 30, 4);
-  fill(0, 102, 153);
-  textAlign(CENTER);
-  text(comText, 10+100/2, 10+40/2);
-  textSize(20);
-
+  disp_meter(100+180*0, 24, 100, 30, "CO2:", co2ppm, "%.0f", "ppm", "range_co2");
+  disp_meter(100+180*1, 24, 100, 30, "T:", 25.4, "%.1f", "°C", "range_temp");
+  disp_meter(100+180*2, 24, 100, 30, "H:", 30.2, "%.1f", "%", "range_humi");
+  
   if (queue.getNPoints() >= 1) {
     if (points.getNPoints() >= pSize) {
       points.remove(0);
@@ -204,7 +408,7 @@ void draw() {
       points.add(gp.getX(), value);
       //points.add(gp.getX(), value, gp.getLabel());
       //points.add(gp);
-      if (Objects.nonNull(csv) && cp5.get(Toggle.class, "csvdump").getValue() == 1) {
+      if (Objects.nonNull(csv) && cp5.get(Toggle.class, "dump_csv").getValue() == 1) {
         Date date = new Date((long) gp.getX()*1000 + + baseDate.getTime());
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
         csv.println("\"" + sdf.format(date) + "\"," + String.valueOf(value));
@@ -263,7 +467,7 @@ public void exit() {
   super.exit();
 }
 
-public void csv(int theValue) {
+public void load_csv(int theValue) {
   selectInput("Select a file to process:", "csvFileSelected", new File(dataPath("")));
 }
 
@@ -294,6 +498,7 @@ public void csvFileSelected(File selection) {
     plotUpdated = true;
     loop(); // restart draw()
   }
+  //cp5.get(Accordion.class, "acc_file").close(); // this causes something wrong with event handling
 }
 
 private void configCom() {
@@ -328,20 +533,54 @@ public void interval(int theValue) {
   cp5.saveProperties("sensor.properties");
 }
 
-public void csvdump(int theValue) {
+public void dump_csv(int theValue) {
   // === Save Properties ===
   cp5.saveProperties("sensor.properties");
 }
 
+public void clear_graph(int theValue) {
+  noLoop(); // stop draw() to avoid plot conflicting
+  points.removeInvalidPoints();
+  points.removeRange(0, points.getNPoints()); // remove 0 ~ N-1
+  plot.setPoints(points);
+  lastSampleTime = millis();
+  plotUpdated = true;
+  loop(); // restart draw()  
+}
+
 // === Serial Callback Function ===
 public void serialEvent(Serial Port) {
-  comText = Port.readStringUntil(10);
+  String comText = Port.readStringUntil(10);
   print(comText);
-  int co2ppm = Integer.parseInt(comText.substring(2, 6));
+  co2ppm = Integer.parseInt(comText.substring(2, 6));
 
   noLoop(); // stop draw() to avoid plot conflicting
-  if (queue.getNPoints() == 0) {
+  if (queue.getNPoints() == 0 && cp5.get(Icon.class, "capture").getBooleanValue()) {
     queue.add((float) (new Date().getTime() - baseDate.getTime())/1000, co2ppm);
   }
   loop(); // restart draw()
 }
+
+public void mouseReleased() {
+  if (
+    cp5.getMouseOverList().contains(cp5.get(Range.class, "range_co2")) ||
+    cp5.getMouseOverList().contains(cp5.get(Range.class, "range_temp")) ||
+    cp5.getMouseOverList().contains(cp5.get(Range.class, "range_humi"))
+  ) {
+    // === Save Properties ===
+    cp5.saveProperties("sensor.properties");    
+  }
+}
+
+  /*
+public void mousePressed() {
+  for (ControllerInterface s : cp5.getMouseOverList()) {
+    println(s);
+  }
+
+  if (cp5.getMouseOverList().contains(cp5.get(Range.class, "range_co2"))) {
+    if (mouseButton == LEFT) {
+      println("a");
+    }
+  }  
+}*/
