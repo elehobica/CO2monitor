@@ -1,6 +1,7 @@
 import java.util.*;
 import java.util.regex.*;
 import java.text.*;
+import java.lang.Math;
 import processing.serial.*;
 import controlP5.*;
 import grafica.*;
@@ -15,8 +16,12 @@ int interval_vals[] = {1, 3, 6, 12, 24, 60, 168, 60*4, 336, 60*12, 60*60};
 
 final int pSize = 3600;
 int lastSampleTime = 0;
-int accum_val = 0;
-int accum_count = 0;
+float co2_accum_val = 0;
+int co2_accum_count = 0;
+float temp_accum_val = 0;
+int temp_accum_count = 0;
+float humi_accum_val = 0;
+int humi_accum_count = 0;
 
 int co2ppm = 0;
 float temp = 0.0;
@@ -26,8 +31,12 @@ boolean temp_valid = false;
 boolean humi_valid = false;
 
 GPlot plot;
+GPlot plot1;
+GPlot plot2;
 GPointsArray queue;
 GPointsArray points;
+GPointsArray points1;
+GPointsArray points2;
 
 String csvDumpFileName;
 PrintWriter csv;
@@ -44,29 +53,71 @@ void setup() {
   // Threfore this sketch handles the offset time
   baseDate = new Date();
 
-  size(640, 480);
+  size(640, 620);
   cp5 = new ControlP5(this);
   ControlFont cf0 = new ControlFont(createFont("Arial", 12));
 
   // ====================
-  // CO2 Graph
+  // Graphs
   // ====================
   queue = new GPointsArray(3);
   points = new GPointsArray(pSize);
+  points1 = new GPointsArray(pSize);
+  points2 = new GPointsArray(pSize);
 
   plot = new GPlot(this);
-  plot.setPos(40, 60);
-  plot.setOuterDim(560, 120);
-  plot.setDim(500, 120);
+  plot.setPos(30, 70);
+  plot.setOuterDim(520, 120);
+  plot.setDim(520, 120);
   plot.setPoints(points);
   plot.setPointSize(2.0);
+  plot.setAxesOffset(0);
+  plot.setTicksLength(-4);
   plot.setTitleText("CO2 (ppm)");
-  //plot.getXAxis().setAxisLabelText("x axis");
+  plot.getTitle().setRelativePos(0.05);
+  //plot.getYAxis().setAxisLabelText("CO2 (ppm)");
   // Activate the zooming and panning
   //plot.activateZooming();
   //plot.activatePanning();
-  plot.setMar(50, 40, 30, 20);
+  plot.setMar(0, 40, 40, 20);
   plot.getYAxis().setRotateTickLabels(false);
+  plot.getXAxis().setDrawTickLabels(false);
+  
+  plot1 = new GPlot(this);
+  plot1.setPos(30, 230);
+  plot1.setOuterDim(520, 120);
+  plot1.setDim(520, 120);
+  plot1.setPoints(points);
+  plot1.setPointSize(2.0);
+  plot1.setAxesOffset(0);
+  plot1.setTicksLength(-4);
+  plot1.setTitleText("Temperature (°C)");
+  plot1.getTitle().setRelativePos(0.05);
+  //plot1.getYAxis().setAxisLabelText("CO2 (ppm)");
+  // Activate the zooming and panning
+  //plot1.activateZooming();
+  //plot1.activatePanning();
+  plot1.setMar(0, 40, 40, 20);
+  plot1.getYAxis().setRotateTickLabels(false);
+  plot1.getXAxis().setDrawTickLabels(false);
+
+  plot2 = new GPlot(this);
+  plot2.setPos(30, 390);
+  plot2.setOuterDim(520, 120);
+  plot2.setDim(520, 120);
+  plot2.setPoints(points);
+  plot2.setPointSize(2.0);
+  plot2.setAxesOffset(0);
+  plot2.setTicksLength(-4);
+  plot2.setTitleText("Humidity (%)");
+  plot2.getTitle().setRelativePos(0.05);
+  //plot2.getYAxis().setAxisLabelText("CO2 (ppm)");
+  // Activate the zooming and panning
+  //plot2.activateZooming();
+  //plot2.activatePanning();
+  plot2.setMar(50, 40, 40, 20);
+  plot2.getYAxis().setRotateTickLabels(false);
+  //plot2.getXAxis().setDrawTickLabels(false);
 
   // ====================
   // File Menu
@@ -208,7 +259,7 @@ void setup() {
       .setPosition(10, 210)
       .setSize(100, 20)
       .setHandleSize(10)
-      .setRange(-40, 60)
+      .setRange(-5, 35)
       .setRangeValues(0, 30)
       // after the initialization we turn broadcast back on again
       .setBroadcast(true)
@@ -232,7 +283,7 @@ void setup() {
       .setPosition(10, 250)
       .setSize(100,20)
       .setHandleSize(10)
-      .setRange(0, 100)
+      .setRange(10, 90)
       .setRangeValues(20, 60)
       // after the initialization we turn broadcast back on again
       .setBroadcast(true)
@@ -365,7 +416,7 @@ void setup() {
   // ====================
   csvDumpFileName = nf(year(), 4) + "_" + nf(month(), 2) + nf(day(), 2) +"_"+ nf(hour(), 2) + nf(minute(), 2) + nf(second(), 2) + ".csv";
   csv = createWriter(csvDumpFileName);
-  csv.println("date,CO2");
+  csv.println("date,CO2,Temperature,Humidity");
   
 }
 
@@ -419,8 +470,14 @@ void draw() {
     while (queue.getNPoints() > 0) {
       gp = queue.get(0);
       if (gp.getLabel().equals("CO2")) {
-        accum_val += gp.getY();
-        accum_count++;
+        co2_accum_val += gp.getY();
+        co2_accum_count++;
+      } else if (gp.getLabel().equals("T")) {
+        temp_accum_val += gp.getY();
+        temp_accum_count++;
+      } else if (gp.getLabel().equals("H")) {
+        humi_accum_val += gp.getY();
+        humi_accum_count++;
       }
       queue.remove(0);
     }
@@ -428,39 +485,78 @@ void draw() {
     int interval = interval_vals[(int) cp5.get(ScrollableList.class, "interval").getValue()];
     if (sampleTime - lastSampleTime >= interval*1000) {
       lastSampleTime += interval*1000;
-      if (accum_count > 0) {
-        float value = (float) accum_val / accum_count;
+      if (co2_accum_count > 0) {
+        float value = Math.round(co2_accum_val / co2_accum_count * 10.0) / 10.0;
         if (points.getNPoints() >= pSize) {
           points.remove(0);
         }
         points.add(gp.getX(), value);
-        //points.add(gp.getX(), value, gp.getLabel());
-        //points.add(gp);
-        if (Objects.nonNull(csv) && cp5.get(Toggle.class, "dump_csv").getValue() == 1) {
-          Date date = new Date((long) gp.getX()*1000 + + baseDate.getTime());
-          SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
-          csv.println("\"" + sdf.format(date) + "\"," + String.valueOf(value));
-          csv.flush();
-          csvIsWritten = true;
-        }
-        accum_val = 0;
-        accum_count = 0;
+
         plot.setPoints(points);
         plotUpdated = true;
       }
+      if (temp_accum_count > 0) {
+        float value = Math.round(temp_accum_val / temp_accum_count * 10.0) / 10.0;
+        if (points1.getNPoints() >= pSize) {
+          points1.remove(0);
+        }
+        points1.add(gp.getX(), value);
+        plot1.setPoints(points1);
+        plotUpdated = true;
+      }
+      if (humi_accum_count > 0) {
+        float value = Math.round(humi_accum_val / humi_accum_count * 10.0) / 10.0;
+        if (points2.getNPoints() >= pSize) {
+          points2.remove(0);
+        }
+        points2.add(gp.getX(), value);
+        plot2.setPoints(points2);
+        plotUpdated = true;
+      }
+      if (Objects.nonNull(csv) && cp5.get(Toggle.class, "dump_csv").getValue() == 1) {
+        Date date = new Date((long) gp.getX()*1000 + + baseDate.getTime());
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+        csv.print("\"" + sdf.format(date) + "\",");
+        if (co2_accum_count > 0) {
+          csv.print(String.valueOf(points.getLastPoint().getY()));
+        }
+        csv.print(",");
+        if (temp_accum_count > 0) {
+          csv.print(String.valueOf(points1.getLastPoint().getY()));
+        }
+        csv.print(",");
+        if (humi_accum_count > 0) {
+          csv.print(String.valueOf(points2.getLastPoint().getY()));
+        }
+        csv.println("");
+        csv.flush();
+        csvIsWritten = true;
+      }
+      co2_accum_val = 0;
+      co2_accum_count = 0;
+      temp_accum_val = 0;
+      temp_accum_count = 0;
+      humi_accum_val = 0;
+      humi_accum_count = 0;
     }
   }
 
   // Graph Update
   if (plotUpdated) {
     plotUpdated = false;
+    //plot.getXAxis().setNTicks(6);
+    
     plot.getXAxis().setNTicks(6);
-    int tickSize = plot.getXAxis().getTicks().length;
+    plot1.getXAxis().setNTicks(6);
+    plot2.getXAxis().setNTicks(6);
+    
+    // Reference Tick is plot1 (Temp.)
+    int tickSize = plot1.getXAxis().getTicks().length;
     String tickLabels[] = new String[tickSize];
     //int tickIdx = 0;
     String prvDateStr = "";
     for (int i = 0; i < tickSize; i++) {
-      float tickX = plot.getXAxis().getTicks()[i];
+      float tickX = plot1.getXAxis().getTicks()[i];
       Date tickDate = new Date((long) tickX*1000 + + baseDate.getTime());
       SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
       String tickDateStr = sdf.format(tickDate);
@@ -473,8 +569,18 @@ void draw() {
         prvDateStr = dateStr;
       }
     }
+    plot1.getXAxis().setTickLabels(tickLabels);
+        
+    // Copy XAxis Limit to the others
+    plot.setXLim(plot1.getXLim());
+    plot2.setXLim(plot1.getXLim());
+    // Copy XAxis Tick Labels
     plot.getXAxis().setTickLabels(tickLabels);
-  }
+    plot2.getXAxis().setTickLabels(tickLabels);
+}
+  // Draw Graphs from Lower to Upper to show XAxis line
+  plot2.defaultDraw();
+  plot1.defaultDraw();
   plot.defaultDraw();
 }
 
@@ -509,21 +615,38 @@ public void csvFileSelected(File selection) {
     println(table.getRowCount() + " total rows in table");
     for (TableRow row : table.rows()) {
       try {
+        float value;
         String dateStr = row.getString("date");
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
         Date date = sdf.parse(dateStr);
-        float co2ppm = row.getFloat("CO2");
+        value = row.getFloat("CO2");
         if (points.getNPoints() >= pSize) {
           points.remove(0);
         }
-        points.add((float) (date.getTime() - baseDate.getTime())/1000, co2ppm);
-        //queue.add((float) (date.getTime() - baseDate.getTime())/1000, co2ppm);
+        points.add((float) (date.getTime() - baseDate.getTime())/1000, value);
+        value = row.getFloat("Temperature");
+        if (points1.getNPoints() >= pSize) {
+          points1.remove(0);
+        }
+        points1.add((float) (date.getTime() - baseDate.getTime())/1000, value);
+        value = row.getFloat("Humidity");
+        if (points2.getNPoints() >= pSize) {
+          points2.remove(0);
+        }
+        points2.add((float) (date.getTime() - baseDate.getTime())/1000, value);        
       } catch (ParseException e) {
-        println("illegal format");
+        println("ERROR: illegal format");
         //e.printStackTrace();
+        break;
+      } catch (IllegalArgumentException e) {
+        println("ERROR: illegal format");
+        //e.printStackTrace();
+        break;
       }
     }
     plot.setPoints(points);
+    plot1.setPoints(points1);
+    plot2.setPoints(points2);
     println("Done");
     plotUpdated = true;
     loop(); // restart draw()
@@ -573,6 +696,12 @@ public void clear_graph(int theValue) {
   points.removeInvalidPoints();
   points.removeRange(0, points.getNPoints()); // remove 0 ~ N-1
   plot.setPoints(points);
+  points1.removeInvalidPoints();
+  points1.removeRange(0, points1.getNPoints()); // remove 0 ~ N-1
+  plot1.setPoints(points1);
+  points2.removeInvalidPoints();
+  points2.removeRange(0, points2.getNPoints()); // remove 0 ~ N-1
+  plot2.setPoints(points);
   lastSampleTime = millis();
   plotUpdated = true;
   loop(); // restart draw()  
