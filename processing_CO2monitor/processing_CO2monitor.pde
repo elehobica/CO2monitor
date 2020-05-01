@@ -1,4 +1,5 @@
 import java.util.*;
+import java.util.regex.*;
 import java.text.*;
 import processing.serial.*;
 import controlP5.*;
@@ -17,8 +18,12 @@ int lastSampleTime = 0;
 int accum_val = 0;
 int accum_count = 0;
 
-int co2ppm = 432;
-//String comText = "";
+int co2ppm = 0;
+float temp = 0.0;
+float humi = 0.0;
+boolean co2ppm_valid = false;
+boolean temp_valid = false;
+boolean humi_valid = false;
 
 GPlot plot;
 GPointsArray queue;
@@ -29,6 +34,8 @@ PrintWriter csv;
 boolean csvIsWritten = false;
 boolean plotUpdated = false;
 Date baseDate;
+
+int rx_time = -300;
    
 void setup() {
   ControllerStyle st;
@@ -44,7 +51,7 @@ void setup() {
   // ====================
   // CO2 Graph
   // ====================
-  queue = new GPointsArray(1);
+  queue = new GPointsArray(3);
   points = new GPointsArray(pSize);
 
   plot = new GPlot(this);
@@ -328,18 +335,19 @@ void setup() {
     ;
 
   // ====================
-  // Capture / Stop
+  // Chart Start / Stop
   // ====================
   cp5.addIcon("capture", 10)
-      .setPosition(600, 20)
-      .setSize(40, 40)
+      .setPosition(600, 24)
+      .setSize(30, 30)              // this determins mouse sensitive area
       //.setRoundedCorners(20)
-      .setFont(createFont("fontawesome-webfont.ttf", 40))
-      .setFontIcons(#00f144, #00f144) // Stop:#00f28d, Pause: #00f28b
+      .setFont(createFont("fontawesome-webfont.ttf", 30)) // 30 determines the size
+      .setFontIcons(#00f201, #00f201) // Play: #00f144, Stop:#00f28d, Pause: #00f28b
       .setSwitch(true)
+      .setOn()
       .setColorForeground(color(64))
-      .setColorActive(color(0, 104, 0))
-      .hideBackground()
+      .setColorActive(color(224, 192, 0))
+      //.hideBackground()
       ;
      
   // ====================
@@ -361,7 +369,7 @@ void setup() {
   
 }
 
-void disp_meter(int x, int y, int w, int h, String captionStr, float val, String valFmt, String unitStr, String rangeName) {
+void disp_meter(int x, int y, int w, int h, String captionStr, boolean isValid, float val, String valFmt, String unitStr, String rangeName) {
   Range range = cp5.get(Range.class, rangeName);
   boolean withinRange = (val >= range.getLowValue() && val <= range.getHighValue());
   if (withinRange) {
@@ -381,47 +389,69 @@ void disp_meter(int x, int y, int w, int h, String captionStr, float val, String
     fill(255, 255, 255);
   }
   textSize(20);
-  text(String.format(valFmt, val), x+w/2-4, y+h/2+8);
+  if (isValid) {
+    text(String.format(valFmt, val), x+w/2-4, y+h/2+8);
+  } else {
+    text("---", x+w/2-4, y+h/2+8);
+  }
   textSize(12);
   text(unitStr, x+w/2+34, y+h/2+8);
 }
 
 void draw() {
   background(128);
-  disp_meter(100+180*0, 24, 100, 30, "CO2:", co2ppm, "%.0f", "ppm", "range_co2");
-  disp_meter(100+180*1, 24, 100, 30, "T:", 25.4, "%.1f", "°C", "range_temp");
-  disp_meter(100+180*2, 24, 100, 30, "H:", 30.2, "%.1f", "%", "range_humi");
+  // Meters
+  disp_meter(100+180*0, 24, 100, 30, "CO2:", co2ppm_valid, co2ppm, "%.0f", "ppm", "range_co2");
+  disp_meter(100+180*1, 24, 100, 30, "T:", temp_valid, temp, "%.1f", "°C", "range_temp");
+  disp_meter(100+180*2, 24, 100, 30, "H:", humi_valid, humi, "%.1f", "%", "range_humi");
   
+  // Rx Indicator
+  if (millis() - rx_time < 300) {
+    fill(24, 192, 24);
+  } else {
+    fill(24, 24, 24);
+  }
+  circle(20, 40, 8);
+  
+  // Graph tick process
   if (queue.getNPoints() >= 1) {
-    if (points.getNPoints() >= pSize) {
-      points.remove(0);
-    }
     GPoint gp = queue.get(0);
-    accum_val += gp.getY();
-    accum_count++;
-    queue.remove(0);
+    while (queue.getNPoints() > 0) {
+      gp = queue.get(0);
+      if (gp.getLabel().equals("CO2")) {
+        accum_val += gp.getY();
+        accum_count++;
+      }
+      queue.remove(0);
+    }
     int sampleTime = millis();
     int interval = interval_vals[(int) cp5.get(ScrollableList.class, "interval").getValue()];
     if (sampleTime - lastSampleTime >= interval*1000) {
       lastSampleTime += interval*1000;
-      float value = (float) accum_val / accum_count;
-      points.add(gp.getX(), value);
-      //points.add(gp.getX(), value, gp.getLabel());
-      //points.add(gp);
-      if (Objects.nonNull(csv) && cp5.get(Toggle.class, "dump_csv").getValue() == 1) {
-        Date date = new Date((long) gp.getX()*1000 + + baseDate.getTime());
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
-        csv.println("\"" + sdf.format(date) + "\"," + String.valueOf(value));
-        csv.flush();
-        csvIsWritten = true;
+      if (accum_count > 0) {
+        float value = (float) accum_val / accum_count;
+        if (points.getNPoints() >= pSize) {
+          points.remove(0);
+        }
+        points.add(gp.getX(), value);
+        //points.add(gp.getX(), value, gp.getLabel());
+        //points.add(gp);
+        if (Objects.nonNull(csv) && cp5.get(Toggle.class, "dump_csv").getValue() == 1) {
+          Date date = new Date((long) gp.getX()*1000 + + baseDate.getTime());
+          SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+          csv.println("\"" + sdf.format(date) + "\"," + String.valueOf(value));
+          csv.flush();
+          csvIsWritten = true;
+        }
+        accum_val = 0;
+        accum_count = 0;
+        plot.setPoints(points);
+        plotUpdated = true;
       }
-      accum_val = 0;
-      accum_count = 0;
-      plot.setPoints(points);
-      plotUpdated = true;
     }
   }
 
+  // Graph Update
   if (plotUpdated) {
     plotUpdated = false;
     plot.getXAxis().setNTicks(6);
@@ -549,16 +579,73 @@ public void clear_graph(int theValue) {
 }
 
 // === Serial Callback Function ===
-public void serialEvent(Serial Port) {
-  String comText = Port.readStringUntil(10);
-  print(comText);
-  co2ppm = Integer.parseInt(comText.substring(2, 6));
+private static boolean isFloat(String str) {
+  String regex = "^\\-?\\d+(\\.\\d+)?$";
+  Pattern p = Pattern.compile(regex);
+  Matcher m = p.matcher(str);
+  return m.find();
+}
 
+private static boolean isDigit(String str) {
+  String regex = "^\\-?\\d+$";
+  Pattern p = Pattern.compile(regex);
+  Matcher m = p.matcher(str);
+  return m.find();
+}
+    
+public void serialEvent(Serial Port) {
+  int idx0, idx1, idx2;
+  String str;
+  String comText;
+  
+  rx_time = millis();
+  comText = Port.readStringUntil(10);
+  print(comText);
+  
+  //format example
+  // # C:xxxx T:-2.50 H:52.80
+  // # C:444 T:26.70 H:52.70
+
+  idx0 = comText.indexOf("# C:");
+  idx1 = comText.indexOf(" T:");
+  idx2 = comText.indexOf(" H:");
+
+  str = comText.substring(idx0+4, idx1);
+  if (isDigit(str)) {
+    co2ppm = Integer.parseInt(str);
+    co2ppm_valid = true;
+  } else {
+    co2ppm_valid = false;
+  }
+  str = comText.substring(idx1+3, idx2);
+  if (isFloat(str)) {
+    temp = Float.parseFloat(str);
+    temp_valid = true;
+  } else {
+    temp_valid = false;
+  }
+  str = comText.substring(idx2+3, comText.length());
+  if (isFloat(str)) {
+    humi = Float.parseFloat(str);
+    humi_valid = true;
+  } else {
+    humi_valid = false;
+  }
+  
   noLoop(); // stop draw() to avoid plot conflicting
   if (queue.getNPoints() == 0 && cp5.get(Icon.class, "capture").getBooleanValue()) {
-    queue.add((float) (new Date().getTime() - baseDate.getTime())/1000, co2ppm);
+    if (co2ppm_valid) {
+      queue.add((float) (new Date().getTime() - baseDate.getTime())/1000, co2ppm, "CO2");
+    }
+    if (temp_valid) {
+      queue.add((float) (new Date().getTime() - baseDate.getTime())/1000, temp, "T");
+    }
+    if (humi_valid) {
+      queue.add((float) (new Date().getTime() - baseDate.getTime())/1000, humi, "H");
+    }
   }
   loop(); // restart draw()
+    
 }
 
 public void mouseReleased() {
@@ -571,16 +658,3 @@ public void mouseReleased() {
     cp5.saveProperties("sensor.properties");    
   }
 }
-
-  /*
-public void mousePressed() {
-  for (ControllerInterface s : cp5.getMouseOverList()) {
-    println(s);
-  }
-
-  if (cp5.getMouseOverList().contains(cp5.get(Range.class, "range_co2"))) {
-    if (mouseButton == LEFT) {
-      println("a");
-    }
-  }  
-}*/
