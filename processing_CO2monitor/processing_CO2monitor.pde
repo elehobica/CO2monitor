@@ -415,9 +415,9 @@ void setup() {
   // CSV Dump
   // ====================
   csvDumpFileName = nf(year(), 4) + "_" + nf(month(), 2) + nf(day(), 2) +"_"+ nf(hour(), 2) + nf(minute(), 2) + nf(second(), 2) + ".csv";
-  csv = createWriter(csvDumpFileName);
+  csv = createWriter(dataPath("") + "/" + csvDumpFileName);
+  //csv = createWriter(sketchPath() + "/" + csvDumpFileName);
   csv.println("date,CO2,Temperature,Humidity");
-  
 }
 
 void disp_meter(int x, int y, int w, int h, String captionStr, boolean isValid, float val, String valFmt, String unitStr, String rangeName) {
@@ -544,7 +544,6 @@ void draw() {
   // Graph Update
   if (plotUpdated) {
     plotUpdated = false;
-    //plot.getXAxis().setNTicks(6);
     
     plot.getXAxis().setNTicks(6);
     plot1.getXAxis().setNTicks(6);
@@ -571,13 +570,13 @@ void draw() {
     }
     plot1.getXAxis().setTickLabels(tickLabels);
         
-    // Copy XAxis Limit to the others
+    // Copy XAxis Limit of the reference to the others
     plot.setXLim(plot1.getXLim());
     plot2.setXLim(plot1.getXLim());
     // Copy XAxis Tick Labels
     plot.getXAxis().setTickLabels(tickLabels);
     plot2.getXAxis().setTickLabels(tickLabels);
-}
+  }
   // Draw Graphs from Lower to Upper to show XAxis line
   plot2.defaultDraw();
   plot1.defaultDraw();
@@ -594,7 +593,8 @@ public void exit() {
     csv.close();
   }
   if (!csvIsWritten) {
-    File f = new File(sketchPath() + "/" + csvDumpFileName);
+    File f = new File(dataPath("") + "/" + csvDumpFileName);
+    //File f = new File(sketchPath() + "/" + csvDumpFileName);
     if (f.exists()) {
       f.delete();
     }
@@ -604,7 +604,7 @@ public void exit() {
 }
 
 public void load_csv(int theValue) {
-  selectInput("Select a file to process:", "csvFileSelected", new File(dataPath("")));
+  selectInput("Select a file to process:", "csvFileSelected", new File(dataPath("data/")));
 }
 
 public void csvFileSelected(File selection) {
@@ -774,7 +774,6 @@ public void serialEvent(Serial Port) {
     }
   }
   loop(); // restart draw()
-    
 }
 
 public void mouseReleased() {
