@@ -54,6 +54,7 @@ void setup() {
   baseDate = new Date();
 
   size(640, 620);
+  surface.setTitle("CO2 Monitor");
   cp5 = new ControlP5(this);
   ControlFont cf0 = new ControlFont(createFont("Arial", 12));
 
@@ -578,9 +579,44 @@ void draw() {
     plot2.getXAxis().setTickLabels(tickLabels);
   }
   // Draw Graphs from Lower to Upper to show XAxis line
+  plot2.beginDraw();
+  plot2.drawBackground();
+  plot2.drawBox();
+  plot2.drawGridLines(GPlot.VERTICAL);
+  plot2.drawXAxis();
+  plot2.drawYAxis();
+  plot2.drawTitle();
+  plot2.drawPoints();
+  plot2.drawLines();
+  plot2.endDraw();
+
+  plot1.beginDraw();
+  plot1.drawBackground();
+  plot1.drawBox();
+  plot1.drawGridLines(GPlot.VERTICAL);
+  plot1.drawXAxis();
+  plot1.drawYAxis();
+  plot1.drawTitle();
+  plot1.drawPoints();
+  plot1.drawLines();
+  plot1.endDraw();
+
+  plot.beginDraw();
+  plot.drawBackground();
+  plot.drawBox();
+  plot.drawGridLines(GPlot.VERTICAL);
+  plot.drawXAxis();
+  plot.drawYAxis();
+  plot.drawTitle();
+  plot.drawPoints();
+  plot.drawLines();
+  plot.endDraw();
+
+  /*
   plot2.defaultDraw();
   plot1.defaultDraw();
   plot.defaultDraw();
+  */
 }
 
 // ====================
