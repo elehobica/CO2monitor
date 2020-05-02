@@ -72,6 +72,8 @@ void setup() {
   plot.setDim(520, 120);
   plot.setPoints(points);
   plot.setPointSize(2.0);
+  plot.setPointColor(0xffee0000);
+  plot.setLineColor(0xffee0000);
   plot.setAxesOffset(0);
   plot.setTicksLength(-4);
   plot.setTitleText("CO2 (ppm)");
@@ -90,6 +92,8 @@ void setup() {
   plot1.setDim(520, 120);
   plot1.setPoints(points);
   plot1.setPointSize(2.0);
+  plot1.setPointColor(0xff00cc00);
+  plot1.setLineColor(0xff00cc00);
   plot1.setAxesOffset(0);
   plot1.setTicksLength(-4);
   plot1.setTitleText("Temperature (°C)");
@@ -108,6 +112,8 @@ void setup() {
   plot2.setDim(520, 120);
   plot2.setPoints(points);
   plot2.setPointSize(2.0);
+  plot2.setPointColor(0xff0000cc);
+  plot2.setLineColor(0xff0000cc);
   plot2.setAxesOffset(0);
   plot2.setTicksLength(-4);
   plot2.setTitleText("Humidity (%)");
@@ -182,11 +188,11 @@ void setup() {
       .toUpperCase(false)
       ;
 
-  cp5.addTextlabel("lbl_interval").setFont(cf0).setText("Graph tick(Total)").setPosition(10,0).moveTo(grp1);
+  cp5.addTextlabel("lbl_interval").setFont(cf0).setText("Graph tick(Total)").setPosition(10,10).moveTo(grp1);
 
   cp5.addScrollableList("interval")
       .setFont(cf0)
-      .setPosition(10, 20)
+      .setPosition(10, 30)
       .setSize(100, 60)
       .setBarHeight(20)
       .setItemHeight(20)
@@ -203,10 +209,21 @@ void setup() {
       .getValueLabel()
       .toUpperCase(false)
       ;
-      
+
+  cp5.addButton("clear_graph")
+      .setFont(cf0)
+      .setPosition(10, 100)
+      .setSize(100, 20)
+      .moveTo(grp1)
+      // Label
+      .getCaptionLabel()
+      .setText("Clear Graph")
+      .toUpperCase(false)
+      ;
+     
   cp5.addToggle("dump_csv")
       .setFont(cf0)
-      .setPosition(10, 90)
+      .setPosition(10, 140)
       .setSize(10,10)
       .moveTo(grp1)
       // Label
@@ -218,22 +235,11 @@ void setup() {
   st.marginLeft = 20;
   st.marginTop = -20;
 
-  cp5.addButton("clear_graph")
-      .setFont(cf0)
-      .setPosition(10,110)
-      .setSize(100, 20)
-      .moveTo(grp1)
-      // Label
-      .getCaptionLabel()
-      .setText("Clear Graph")
-      .toUpperCase(false)
-      ;
-
   cp5.addRange("range_co2")
       .setFont(cf0)
       // disable broadcasting since setRange and setRangeValues will trigger an event
       .setBroadcast(false) 
-      .setPosition(10, 170)
+      .setPosition(10, 180)
       .setSize(100, 20)
       .setHandleSize(10)
       .setRange(400, 2000)
@@ -246,7 +252,7 @@ void setup() {
       ;
   cp5.get(Range.class, "range_co2")
       .getCaptionLabel()
-      .setText("CO2 Green Zone")
+      .setText("CO2 Normal Zone")
       .toUpperCase(false)
       ;
   st = cp5.get(Range.class, "range_co2").getCaptionLabel().getStyle();
@@ -257,7 +263,7 @@ void setup() {
       .setFont(cf0)
       // disable broadcasting since setRange and setRangeValues will trigger an event
       .setBroadcast(false) 
-      .setPosition(10, 210)
+      .setPosition(10, 220)
       .setSize(100, 20)
       .setHandleSize(10)
       .setRange(-5, 35)
@@ -270,7 +276,7 @@ void setup() {
       ;
   cp5.get(Range.class, "range_temp")
       .getCaptionLabel()
-      .setText("T. Green Zone")
+      .setText("T. Normal Zone")
       .toUpperCase(false)
       ;
   st = cp5.get(Range.class, "range_temp").getCaptionLabel().getStyle();
@@ -281,7 +287,7 @@ void setup() {
       .setFont(cf0)
       // disable broadcasting since setRange and setRangeValues will trigger an event
       .setBroadcast(false) 
-      .setPosition(10, 250)
+      .setPosition(10, 260)
       .setSize(100,20)
       .setHandleSize(10)
       .setRange(10, 90)
@@ -294,7 +300,7 @@ void setup() {
       ;
   cp5.get(Range.class, "range_humi")
       .getCaptionLabel()
-      .setText("H. Green Zone")
+      .setText("H. Normal Zone")
       .toUpperCase(false)
       ;
   st = cp5.get(Range.class, "range_humi").getCaptionLabel().getStyle();
