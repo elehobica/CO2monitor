@@ -10,7 +10,7 @@ FlashClass flash((const void *) 0x00000000, 256*1024);
 #define CONFIG_AREA_SIZE    64
 #define CONFIG_USED_SIZE    0x10
 #define CONFIG_BOOT_COUNT   ((const volatile void *) (CONFIG_AREA_BASE + 0x00))
-#define CONFIG_CALIB_COUNT ((const volatile void *) (CONFIG_AREA_BASE + 0x04))
+#define CONFIG_CALIB_COUNT  ((const volatile void *) (CONFIG_AREA_BASE + 0x04))
 #define CONFIG_CAL_A        ((const volatile void *) (CONFIG_AREA_BASE + 0x08))
 #define CONFIG_CAL_B        ((const volatile void *) (CONFIG_AREA_BASE + 0x0C))
 uint32_t boot_count, calib_count;
@@ -40,13 +40,13 @@ DHT dht(DHTPIN, DHTTYPE);
  *  V: 3.3V > 200 mA
  */
 #include "RX9QR.h"
-#define EMF_pin 5   // RX-9 E with PA5
-#define THER_pin 6  // RX-9 T with PA6
+#define EMF_pin 5   // RX-9 E
+#define THER_pin 6  // RX-9 T
 #define ADCvolt 3.3
 #define ADCResol 1024
 #define Base_line 432
 #define meti 60  
-#define mein 120 //Automotive: 120, Home or indoor: 1440
+#define mein 1440 //Automotive: 120, Home or indoor: 1440
 
 //CO2 calibrated number
 float cal_A = 372.1; // you can take the data from RX-9 bottom side QR data #### of first 4 digits. you type the data to cal_A as ###.#
@@ -66,7 +66,8 @@ float cal_B = 63.27; // following 4 digits after cal_A is cal_B, type the data t
 #define C3 0.00000002113323296
 float Resist_0 = 15;
 
-RX9QR RX9(cal_A, cal_B, Base_line, meti, mein, cr1, cr2, cr3, cr4);
+//RX9QR RX9(cal_A, cal_B, Base_line, meti, mein, cr1, cr2, cr3, cr4);
+RX9QR *RX9; // Initialize later to reflect cal_A and cal_B in Flash
 /* ========== CO2 Sensor RX-9 (End) ========== */
 
 //Timing
@@ -103,9 +104,9 @@ bool getCO2(unsigned int *val) {
   THER = 1/(C1+C2*log((Resist_0*THER)/(ADCResol-THER))+C3*pow(log((Resist_0*THER)/(ADCResol-THER)),3))-273.15;
   // <-- read THER data from RX-9, RX-9 Simple END
   
-  status_sensor = RX9.status_co2();   //read status_sensor, status_sensor = 0 means warming up, = 1 means stable
-  co2_ppm = RX9.cal_co2(EMF,THER);    //calculation carbon dioxide gas concentration. 
-  co2_step = RX9.step_co2();          //read steps of carbon dioixde gas concentration. you can edit the step range with cr1~cr4 above.
+  status_sensor = RX9->status_co2();   //read status_sensor, status_sensor = 0 means warming up, = 1 means stable
+  co2_ppm = RX9->cal_co2(EMF,THER);    //calculation carbon dioxide gas concentration. 
+  co2_step = RX9->step_co2();          //read steps of carbon dioixde gas concentration. you can edit the step range with cr1~cr4 above.
   *val = co2_ppm;
   return (status_sensor == 1);
 }
@@ -140,7 +141,7 @@ void updateFlashConfig() {
 
 void setup() {
   // Serial COM
-  SerialUSB.begin(115200);
+  SerialUSB.begin(115200); // This has no meaning in case of Seeeduino XIAO
   delay(1000);
 
   // Load Config Parameters from flash
@@ -164,8 +165,10 @@ void setup() {
     // update boot_count
     updateFlashConfig();
   }
+  // Create CO2 Sensor instance here with cal_A, cal_B
+  RX9 = new RX9QR(cal_A, cal_B, Base_line, meti, mein, cr1, cr2, cr3, cr4);
   SerialUSB.println("");
-  SerialUSB.println("Seeed XIAO CO2/Temp/Humidity Monitor ver 1.00");
+  SerialUSB.println("Seeeduino XIAO CO2/Temp/Humidity Monitor ver 1.00");
   SerialUSB.print("Boot count: ");
   SerialUSB.print(boot_count);
   SerialUSB.print(" Calibration count: ");
@@ -237,6 +240,7 @@ void loop() {
   }
   if (rcv_end && rcv_msg_pos > 0) {
     //SerialUSB.println(rcv_msg);
+    while (SerialUSB.available()) Serial.read(); // Force buffer empty
     rcv_msg_pos = 0;
     rcv_end = false;
     String rcvMsg = rcv_msg;
@@ -271,13 +275,21 @@ void loop() {
           cal_B = factor_B.toFloat() / 100.0;
           calib_count++;
           updateFlashConfig();
-          SerialUSB.println("Calibration OK");
+          SerialUSB.println("OK: Calibration Parameters are correctly stored. Type 'reset' to reflect.");
         } else {
-          SerialUSB.println("Calibration Value Error");
+          SerialUSB.print("ERROR: Illegal Calibration Value '");
+          SerialUSB.print(rcvMsg);
+          SerialUSB.println("'");  
         }
       } else {
-        SerialUSB.println("Calibration Format Error");
+        SerialUSB.print("ERROR: Illegal Calibration Format '");
+        SerialUSB.print(rcvMsg);
+        SerialUSB.println("'");       
       }
+    } else {
+      SerialUSB.print("ERROR: Undefined command '");
+      SerialUSB.print(rcvMsg);
+      SerialUSB.println("'");
     }
     if (enable_echoback) {
       SerialUSB.println(rcvMsg);
