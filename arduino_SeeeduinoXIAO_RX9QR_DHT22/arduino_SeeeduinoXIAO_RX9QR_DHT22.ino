@@ -125,17 +125,13 @@ bool getHumidity(float *val) {
 
 void updateFlashConfig() {
   uint32_t *data = (uint32_t *) malloc(CONFIG_AREA_SIZE);
-  for (int i = 0; i < CONFIG_AREA_SIZE/4; i++) {
-    flash.read(CONFIG_AREA_BASE + i*4, &data[i], sizeof(data[i]));
-  }
+  flash.read(CONFIG_AREA_BASE, data, CONFIG_AREA_SIZE);
   flash.erase(CONFIG_AREA_BASE, CONFIG_AREA_SIZE);
   flash.write(CONFIG_BOOT_COUNT, &boot_count, sizeof(boot_count));
   flash.write(CONFIG_CALIB_COUNT, &calib_count, sizeof(calib_count));
   flash.write(CONFIG_CAL_A, &cal_A, sizeof(cal_A));
   flash.write(CONFIG_CAL_B, &cal_B, sizeof(cal_B));
-  for (int i = CONFIG_USED_SIZE/4; i < CONFIG_AREA_SIZE/4; i++) {
-    flash.write(CONFIG_AREA_BASE + i*4, &data[i], sizeof(data[i]));
-  }
+  flash.write(CONFIG_AREA_BASE + CONFIG_USED_SIZE, &data[CONFIG_USED_SIZE/4], CONFIG_AREA_SIZE - CONFIG_USED_SIZE);
   free(data);
 }
 
