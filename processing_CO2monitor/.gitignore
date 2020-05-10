@@ -1,1 +1,4 @@
-*.csv
+data/
+*.json
+fontawesome-webfont.ttf
+application.*/

@@ -68,7 +68,7 @@ Connect Seeduino XIAO with the sketch uploaded to USB connector and execute 'pro
 At the first launch of the sketch, select COM port number from the COM Menu.  
 ![Select COM Port](Screenshot_Processing_CO2Monitor.png)
 
-Once the execution is succeeded, you can migrate to the different platform by the function of 'Export as Application' from File Menu.  In that case, put 'fontawesome-webfont.ttf' manually on new application directory (application.xxxx).
+Once the execution is succeeded, you can migrate to the different platform by the function of 'Export as Application' from File Menu of Processing. In that case, put 'fontawesome-webfont.ttf' manually under the new application directory (application.xxxx).
 
 ## Appendix
 
