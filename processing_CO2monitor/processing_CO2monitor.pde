@@ -40,7 +40,7 @@ GPointsArray points2;
 
 String csvDumpFileName;
 PrintWriter csv;
-boolean csvIsWritten = false;
+int csvNumItems = 0;
 boolean plotUpdated = false;
 Date baseDate;
 
@@ -425,6 +425,7 @@ void setup() {
   csv = createWriter(dataPath("") + "/" + csvDumpFileName);
   //csv = createWriter(sketchPath() + "/" + csvDumpFileName);
   csv.println("date,CO2,Temperature,Humidity");
+  csvNumItems = 0;
 }
 
 void disp_meter(int x, int y, int w, int h, String captionStr, boolean isValid, float val, String valFmt, String unitStr, String rangeName) {
@@ -521,6 +522,16 @@ void draw() {
         plotUpdated = true;
       }
       if (Objects.nonNull(csv) && cp5.get(Toggle.class, "dump_csv").getValue() == 1) {
+        if (csvNumItems >= pSize) {
+          // renew (close & reopen) CSV File
+          csv.flush();
+          csv.close();
+          csvDumpFileName = nf(year(), 4) + "_" + nf(month(), 2) + nf(day(), 2) +"_"+ nf(hour(), 2) + nf(minute(), 2) + nf(second(), 2) + ".csv";
+          csv = createWriter(dataPath("") + "/" + csvDumpFileName);
+          //csv = createWriter(sketchPath() + "/" + csvDumpFileName);
+          csv.println("date,CO2,Temperature,Humidity");
+          csvNumItems = 0;
+        }
         Date date = new Date((long) gp.getX()*1000 + + baseDate.getTime());
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
         csv.print("\"" + sdf.format(date) + "\",");
@@ -537,7 +548,7 @@ void draw() {
         }
         csv.println("");
         csv.flush();
-        csvIsWritten = true;
+        csvNumItems++;
       }
       co2_accum_val = 0;
       co2_accum_count = 0;
@@ -634,7 +645,7 @@ public void exit() {
     csv.flush();
     csv.close();
   }
-  if (!csvIsWritten) {
+  if (csvNumItems == 0) {
     File f = new File(dataPath("") + "/" + csvDumpFileName);
     //File f = new File(sketchPath() + "/" + csvDumpFileName);
     if (f.exists()) {
@@ -707,8 +718,12 @@ private void configCom() {
       Port.stop();
     }
     if (comPort != "" || comPort != "-") {
-      Port = new Serial(this, comPort, comSpeed);
-      Port.bufferUntil(10);
+      try {
+        Port = new Serial(this, comPort, comSpeed);
+        Port.bufferUntil(10);
+      } catch (RuntimeException e) {
+        println("ERROR: Serial Port \"" + comPort + "\" is busy");
+      }
     }
     // === Save Properties ===
     cp5.saveProperties("sensor.properties");
