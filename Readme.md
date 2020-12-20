@@ -9,6 +9,7 @@
 | 2 | EXSEN / RX-9 | Solid Electrochemical CO2 Sensor |
 | 3 | DHT22 (AM2302) | Temperature / Humidity Sensor |
 | 4 | 5V to 3.3V Step Down DC/DC with output current capacity 500mA~ | 3.3V power supply for RX-9 |
+| 5 | 10Kohm | DHT22 pull up |
 
 Since RX-9 could consume 242mA (max) current during warming up, 3.3V power for RX-9 must be separated from Seeeduino XIAO's 3.3V.
 
@@ -18,7 +19,7 @@ Since RX-9 could consume 242mA (max) current during warming up, 3.3V power for R
 ## Pin Assignment
 | Definition | Arduino Pin No. | Attribute | Connected with |
 ----|----|----|---- 
-| DHTPIN | 2 | Analog In | DHT22 Pin2 |
+| DHTPIN | 2 | Digital In | DHT22 Pin2 |
 | EMF_pin | 5 | Analog In | RX-9 ETF |
 | THER_pin | 6 | Analog In | RX-9 THER |
 
